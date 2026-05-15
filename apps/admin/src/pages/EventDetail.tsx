@@ -1,6 +1,10 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { io, Socket } from 'socket.io-client'
+import {
+  ArrowLeft, Users, UserCheck, UserX, FileDown,
+  Trash2, CheckCircle, TrendingUp, Send,
+} from 'lucide-react'
 import { api } from '../api/client.ts'
 import type { Event, Invitation, DashboardStats } from '@event-tracker/shared'
 
@@ -18,14 +22,16 @@ export default function EventDetailPage() {
   const [feed, setFeed] = useState<CheckInFeedItem[]>([])
   const [tab, setTab] = useState<'dashboard' | 'invitations'>('dashboard')
   const [socket, setSocket] = useState<Socket | null>(null)
+  const [inviting, setInviting] = useState(false)
+  const [inviteMsg, setInviteMsg] = useState<{ text: string; ok: boolean } | null>(null)
 
-  const loadStats = useCallback(async () => {
+  const loadStats = useCallback(async (): Promise<void> => {
     if (!id) return
     const s = await api.getEventDashboard(id) as DashboardStats
     setStats(s)
   }, [id])
 
-  const loadInvitations = useCallback(async () => {
+  const loadInvitations = useCallback(async (): Promise<void> => {
     if (!id) return
     setInvitations(await api.getEventInvitations(id) as Invitation[])
   }, [id])
@@ -51,9 +57,20 @@ export default function EventDetailPage() {
 
   async function inviteAll() {
     if (!id || !confirm('Tüm çalışanlara davet oluşturulsun mu?')) return
-    await api.inviteAll(id)
-    loadInvitations()
-    loadStats()
+    setInviting(true)
+    setInviteMsg(null)
+    try {
+      const res = await api.inviteAll(id) as { created: number }
+      await loadInvitations()
+      await loadStats()
+      setInviteMsg({ text: `${res.created} davet oluşturuldu`, ok: true })
+      setTab('invitations')
+    } catch (e: unknown) {
+      setInviteMsg({ text: e instanceof Error ? e.message : 'Davet oluşturulamadı', ok: false })
+    } finally {
+      setInviting(false)
+      setTimeout(() => setInviteMsg(null), 5000)
+    }
   }
 
   async function delInvitation(invId: string) {
@@ -62,92 +79,104 @@ export default function EventDetailPage() {
     loadStats()
   }
 
-  if (!event) return <div className="page"><p>Yükleniyor...</p></div>
+  if (!event) return <div className="page"><p style={{ color: 'var(--muted)' }}>Yükleniyor...</p></div>
 
   const checkedInInvs = invitations.filter(i => i.checkin)
   const notArrivedInvs = invitations.filter(i => !i.checkin)
+  const attendanceRate = stats && stats.total > 0 ? Math.round((stats.checkedIn / stats.total) * 100) : 0
 
   return (
     <div className="page">
       <div className="page-header">
         <div>
-          <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 4 }}>
-            <Link to="/events">← Etkinlikler</Link>
+          <p style={{ marginBottom: 6 }}>
+            <Link to="/events" style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 13, color: 'var(--muted)' }}>
+              <ArrowLeft size={13} /> Etkinlikler
+            </Link>
           </p>
           <h1>{event.title}</h1>
-          <p style={{ fontSize: 13, color: 'var(--muted)', marginTop: 4 }}>
+          <p className="page-subtitle">
             {new Date(event.date).toLocaleDateString('tr-TR', { dateStyle: 'full' })}
             {event.location ? ` · ${event.location}` : ''}
           </p>
         </div>
-        <button className="btn-primary" onClick={inviteAll}>Herkesi Davet Et</button>
-      </div>
-
-      <div style={{ display: 'flex', gap: 8, marginBottom: 20 }}>
-        {(['dashboard', 'invitations'] as const).map(t => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            style={{
-              background: tab === t ? 'var(--primary)' : 'var(--border)',
-              color: tab === t ? '#fff' : 'var(--text)',
-              borderRadius: 'var(--radius)',
-              padding: '6px 16px',
-              border: 'none',
-              cursor: 'pointer',
-              fontWeight: 500,
-            }}
-          >
-            {t === 'dashboard' ? 'Dashboard' : 'Davetliler'}
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: 8 }}>
+          <button className="btn-primary" onClick={inviteAll} disabled={inviting}>
+            <Send size={14} />
+            {inviting ? 'Davetler oluşturuluyor…' : 'Herkesi Davet Et'}
           </button>
-        ))}
+          {inviteMsg && (
+            <span className={`alert ${inviteMsg.ok ? 'alert-success' : 'alert-error'}`} style={{ fontSize: 12 }}>
+              {inviteMsg.ok ? <CheckCircle size={13} /> : null}
+              {inviteMsg.text}
+            </span>
+          )}
+        </div>
       </div>
 
-      {tab === 'dashboard' && stats && (
+      <div className="tabs">
+        <button className={`tab-btn ${tab === 'dashboard' ? 'active' : ''}`} onClick={() => setTab('dashboard')}>
+          Dashboard
+        </button>
+        <button className={`tab-btn ${tab === 'invitations' ? 'active' : ''}`} onClick={() => setTab('invitations')}>
+          Davetliler {invitations.length > 0 && `(${invitations.length})`}
+        </button>
+      </div>
+
+      {tab === 'dashboard' && (
         <>
           <div className="stat-grid">
             <div className="stat-card">
-              <div className="num">{stats.total}</div>
-              <div className="label">Toplam Davetli</div>
+              <div className="stat-label" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <Users size={12} /> Toplam Davetli
+              </div>
+              <div className="stat-num">{stats?.total ?? 0}</div>
             </div>
             <div className="stat-card" style={{ borderColor: '#bbf7d0' }}>
-              <div className="num" style={{ color: 'var(--success)' }}>{stats.checkedIn}</div>
-              <div className="label">Giriş Yapan</div>
+              <div className="stat-label" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <UserCheck size={12} style={{ color: 'var(--success)' }} />
+                <span style={{ color: 'var(--success)' }}>Giriş Yapan</span>
+              </div>
+              <div className="stat-num" style={{ color: 'var(--success)' }}>{stats?.checkedIn ?? 0}</div>
             </div>
             <div className="stat-card" style={{ borderColor: '#fde68a' }}>
-              <div className="num" style={{ color: '#d97706' }}>{stats.notArrived}</div>
-              <div className="label">Henüz Gelmedi</div>
+              <div className="stat-label" style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+                <UserX size={12} style={{ color: 'var(--warning)' }} />
+                <span style={{ color: 'var(--warning)' }}>Henüz Gelmedi</span>
+              </div>
+              <div className="stat-num" style={{ color: 'var(--warning)' }}>{stats?.notArrived ?? 0}</div>
             </div>
           </div>
 
-          {stats.total > 0 && (
-            <div className="card" style={{ marginBottom: 24 }}>
-              <div style={{ height: 12, background: 'var(--border)', borderRadius: 999, overflow: 'hidden' }}>
-                <div style={{
-                  height: '100%',
-                  width: `${Math.round((stats.checkedIn / stats.total) * 100)}%`,
-                  background: 'var(--success)',
-                  borderRadius: 999,
-                  transition: 'width 0.5s ease',
-                }} />
+          {stats && stats.total > 0 && (
+            <div className="card" style={{ marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 8 }}>
+                <span style={{ fontSize: 13, fontWeight: 600, display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <TrendingUp size={14} style={{ color: 'var(--primary)' }} /> Katılım Oranı
+                </span>
+                <span style={{ fontSize: 20, fontWeight: 700, color: 'var(--primary)' }}>%{attendanceRate}</span>
               </div>
-              <p style={{ fontSize: 12, color: 'var(--muted)', marginTop: 6 }}>
-                %{Math.round((stats.checkedIn / stats.total) * 100)} katılım oranı
-              </p>
+              <div className="progress-bar">
+                <div className="progress-fill" style={{ width: `${attendanceRate}%` }} />
+              </div>
             </div>
           )}
 
           <div className="card">
-            <h3 style={{ marginBottom: 12, fontSize: 15 }}>Anlık Giriş Akışı</h3>
+            <h3 style={{ marginBottom: 14, fontSize: 14, fontWeight: 600 }}>Anlık Giriş Akışı</h3>
             {feed.length === 0 ? (
-              <p className="empty" style={{ padding: '24px 0' }}>Henüz giriş yapılmadı</p>
+              <div style={{ padding: '24px 0', textAlign: 'center', color: 'var(--muted)', fontSize: 13 }}>
+                Henüz giriş yapılmadı
+              </div>
             ) : (
               <div className="checkin-feed">
                 {feed.map((item, i) => (
                   <div key={i} className="feed-item">
-                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#dcfce7', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 18 }}>✓</div>
+                    <div className="feed-avatar">
+                      <CheckCircle size={16} />
+                    </div>
                     <div>
-                      <div style={{ fontWeight: 500 }}>{item.employeeName}</div>
+                      <div style={{ fontWeight: 600, fontSize: 13 }}>{item.employeeName}</div>
                       <div style={{ fontSize: 12, color: 'var(--muted)' }}>
                         {item.employeeDepartment && <span>{item.employeeDepartment} · </span>}
                         {new Date(item.checkedAt).toLocaleTimeString('tr-TR')}
@@ -162,9 +191,13 @@ export default function EventDetailPage() {
       )}
 
       {tab === 'invitations' && (
-        <div className="card" style={{ padding: 0 }}>
+        <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
           {invitations.length === 0 ? (
-            <div className="empty">Henüz davet oluşturulmamış. "Herkesi Davet Et" butonunu kullanın.</div>
+            <div className="empty">
+              <Send size={36} />
+              <span>Henüz davet oluşturulmamış</span>
+              <span style={{ fontSize: 12 }}>Yukarıdaki "Herkesi Davet Et" butonunu kullanın</span>
+            </div>
           ) : (
             <table>
               <thead>
@@ -173,32 +206,63 @@ export default function EventDetailPage() {
                   <th>Departman</th>
                   <th>Kod</th>
                   <th>Durum</th>
-                  <th>Giriş Zamanı</th>
-                  <th>PDF</th>
-                  <th></th>
+                  <th>Giriş Saati</th>
+                  <th style={{ width: 80 }}></th>
                 </tr>
               </thead>
               <tbody>
                 {checkedInInvs.map(inv => (
                   <tr key={inv.id}>
-                    <td>{inv.employee?.name}</td>
-                    <td>{inv.employee?.department ?? '—'}</td>
-                    <td><code style={{ fontSize: 13 }}>{inv.code.replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3')}</code></td>
-                    <td><span className="badge badge-green">Giriş Yapıldı</span></td>
-                    <td style={{ fontSize: 12 }}>{inv.checkin ? new Date(inv.checkin.checkedAt).toLocaleTimeString('tr-TR') : '—'}</td>
-                    <td><a href={api.getPdfUrl(inv.id)} target="_blank" rel="noreferrer" style={{ fontSize: 12 }}>PDF ↗</a></td>
-                    <td><button className="btn-icon btn-sm" onClick={() => delInvitation(inv.id)}>🗑️</button></td>
+                    <td style={{ fontWeight: 500 }}>{inv.employee?.name}</td>
+                    <td>{inv.employee?.department
+                      ? <span className="tag">{inv.employee.department}</span>
+                      : <span style={{ color: 'var(--muted)' }}>—</span>
+                    }</td>
+                    <td>
+                      <code style={{ fontSize: 12, background: 'var(--bg)', padding: '2px 6px', borderRadius: 4 }}>
+                        {inv.code.replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3')}
+                      </code>
+                    </td>
+                    <td><span className="badge badge-green"><CheckCircle size={10} /> Giriş Yapıldı</span></td>
+                    <td style={{ fontSize: 12 }}>
+                      {inv.checkin ? new Date(inv.checkin.checkedAt).toLocaleTimeString('tr-TR') : '—'}
+                    </td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+                        <a href={api.getPdfUrl(inv.id)} target="_blank" rel="noreferrer" title="PDF İndir">
+                          <button className="btn-icon"><FileDown size={14} /></button>
+                        </a>
+                        <button className="btn-icon btn-delete" title="Sil" onClick={() => delInvitation(inv.id)}>
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
                 {notArrivedInvs.map(inv => (
                   <tr key={inv.id}>
-                    <td>{inv.employee?.name}</td>
-                    <td>{inv.employee?.department ?? '—'}</td>
-                    <td><code style={{ fontSize: 13 }}>{inv.code.replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3')}</code></td>
-                    <td><span className="badge badge-gray">Gelmedi</span></td>
-                    <td>—</td>
-                    <td><a href={api.getPdfUrl(inv.id)} target="_blank" rel="noreferrer" style={{ fontSize: 12 }}>PDF ↗</a></td>
-                    <td><button className="btn-icon btn-sm" onClick={() => delInvitation(inv.id)}>🗑️</button></td>
+                    <td style={{ fontWeight: 500 }}>{inv.employee?.name}</td>
+                    <td>{inv.employee?.department
+                      ? <span className="tag">{inv.employee.department}</span>
+                      : <span style={{ color: 'var(--muted)' }}>—</span>
+                    }</td>
+                    <td>
+                      <code style={{ fontSize: 12, background: 'var(--bg)', padding: '2px 6px', borderRadius: 4 }}>
+                        {inv.code.replace(/(\d{3})(\d{3})(\d{3})/, '$1 $2 $3')}
+                      </code>
+                    </td>
+                    <td><span className="badge badge-gray">Bekleniyor</span></td>
+                    <td style={{ color: 'var(--muted)', fontSize: 12 }}>—</td>
+                    <td>
+                      <div style={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+                        <a href={api.getPdfUrl(inv.id)} target="_blank" rel="noreferrer" title="PDF İndir">
+                          <button className="btn-icon"><FileDown size={14} /></button>
+                        </a>
+                        <button className="btn-icon btn-delete" title="Sil" onClick={() => delInvitation(inv.id)}>
+                          <Trash2 size={14} />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 ))}
               </tbody>

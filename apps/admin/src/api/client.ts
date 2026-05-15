@@ -33,7 +33,7 @@ export const api = {
   createInvitations: (eventId: string, employeeIds: string[]) =>
     req(`/events/${eventId}/invitations`, { method: 'POST', body: JSON.stringify({ employeeIds }) }),
   inviteAll: (eventId: string) =>
-    req(`/events/${eventId}/invitations/all`, { method: 'POST' }),
+    req(`/events/${eventId}/invitations/all`, { method: 'POST', body: JSON.stringify({}) }),
   deleteInvitation: (id: string) => req(`/invitations/${id}`, { method: 'DELETE' }),
   getPdfUrl: (id: string) => `${BASE}/invitations/${id}/pdf`,
 

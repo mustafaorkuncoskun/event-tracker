@@ -9,27 +9,32 @@ declare module 'fastify' {
 }
 
 const checkInSchema = z.object({
-  value: z.string().min(1), // UUID token veya 9 haneli kod
+  value: z.string().min(1),
   staffId: z.string().uuid(),
+  eventId: z.string().uuid(),
 })
 
 const checkins: FastifyPluginAsync = async (fastify) => {
   fastify.post('/checkin', async (req, reply) => {
-    const { value, staffId } = checkInSchema.parse(req.body)
+    const { value, staffId, eventId } = checkInSchema.parse(req.body)
 
     const staff = await fastify.prisma.staffUser.findUnique({ where: { id: staffId } })
     if (!staff) return reply.code(401).send({ error: 'Geçersiz görevli' })
 
-    // UUID token mu yoksa 9 haneli kod mu?
     const isToken = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value)
 
     const invitation = await fastify.prisma.invitation.findUnique({
       where: isToken ? { token: value } : { code: value },
-      include: { employee: true, checkin: true, event: true },
+      include: { employee: true, checkin: true },
     })
 
     if (!invitation) {
       return reply.code(404).send({ success: false, reason: 'not_found', message: 'Kod veya QR geçersiz' })
+    }
+
+    // Kodun bu etkinliğe ait olup olmadığını kontrol et
+    if (invitation.eventId !== eventId) {
+      return reply.code(400).send({ success: false, reason: 'wrong_event', message: 'Bu kod bu etkinliğe ait değil' })
     }
 
     if (invitation.checkin) {
@@ -43,15 +48,13 @@ const checkins: FastifyPluginAsync = async (fastify) => {
 
     const checkIn = await fastify.prisma.checkIn.create({
       data: { invitationId: invitation.id, staffId },
-      include: { invitation: { include: { employee: true } } },
     })
 
-    // Dashboard'a anlık bildirim
-    fastify.io.to(`event:${invitation.eventId}`).emit('checkin', {
+    fastify.io.to(`event:${eventId}`).emit('checkin', {
       employeeName: invitation.employee.name,
       employeeDepartment: invitation.employee.department,
       checkedAt: checkIn.checkedAt,
-      eventId: invitation.eventId,
+      eventId,
     })
 
     return reply.code(201).send({

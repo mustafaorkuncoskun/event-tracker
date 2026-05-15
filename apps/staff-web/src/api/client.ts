@@ -17,9 +17,9 @@ export const api = {
       body: JSON.stringify({ pinCode }),
     }),
 
-  checkin: (value: string, staffId: string) =>
+  checkin: (value: string, staffId: string, eventId: string) =>
     req('/checkin', {
       method: 'POST',
-      body: JSON.stringify({ value, staffId }),
+      body: JSON.stringify({ value, staffId, eventId }),
     }),
 }

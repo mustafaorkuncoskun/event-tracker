@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react'
+import { Plus, Pencil, Trash2, Upload, Users } from 'lucide-react'
 import { api } from '../api/client.ts'
 import type { Employee } from '@event-tracker/shared'
 
@@ -41,7 +42,7 @@ export default function EmployeesPage() {
       setShowModal(false)
       load()
     } catch (e: unknown) {
-      setError(e instanceof Error ? e.message : 'Hata')
+      setError(e instanceof Error ? e.message : 'Hata oluştu')
     }
   }
 
@@ -63,19 +64,36 @@ export default function EmployeesPage() {
     }
   }
 
+  const fields: { key: keyof typeof form; label: string; placeholder: string }[] = [
+    { key: 'name', label: 'Ad Soyad', placeholder: 'Ahmet Yılmaz' },
+    { key: 'email', label: 'E-posta', placeholder: 'ahmet@sirket.com' },
+    { key: 'phone', label: 'Telefon', placeholder: '5551234567' },
+    { key: 'department', label: 'Departman', placeholder: 'Yazılım' },
+  ]
+
   return (
     <div className="page">
       <div className="page-header">
-        <h1>Çalışanlar</h1>
+        <div>
+          <h1>Çalışanlar</h1>
+          <p className="page-subtitle">{employees.length} çalışan</p>
+        </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <button className="btn-secondary" onClick={() => setShowImport(true)}>CSV İçe Aktar</button>
-          <button className="btn-primary" onClick={openNew}>+ Çalışan Ekle</button>
+          <button className="btn-secondary" onClick={() => setShowImport(true)}>
+            <Upload size={14} /> CSV İçe Aktar
+          </button>
+          <button className="btn-primary" onClick={openNew}>
+            <Plus size={15} /> Çalışan Ekle
+          </button>
         </div>
       </div>
 
-      <div className="card" style={{ padding: 0 }}>
+      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
         {employees.length === 0 ? (
-          <div className="empty">Henüz çalışan eklenmemiş</div>
+          <div className="empty">
+            <Users size={36} />
+            <span>Henüz çalışan eklenmemiş</span>
+          </div>
         ) : (
           <table>
             <thead>
@@ -84,19 +102,30 @@ export default function EmployeesPage() {
                 <th>E-posta</th>
                 <th>Telefon</th>
                 <th>Departman</th>
-                <th></th>
+                <th style={{ width: 80 }}></th>
               </tr>
             </thead>
             <tbody>
               {employees.map(emp => (
                 <tr key={emp.id}>
-                  <td>{emp.name}</td>
+                  <td style={{ fontWeight: 500 }}>{emp.name}</td>
                   <td>{emp.email}</td>
-                  <td>{emp.phone ?? '—'}</td>
-                  <td>{emp.department ? <span className="tag">{emp.department}</span> : '—'}</td>
-                  <td style={{ display: 'flex', gap: 4 }}>
-                    <button className="btn-icon btn-sm" onClick={() => openEdit(emp)}>✏️</button>
-                    <button className="btn-icon btn-sm" onClick={() => del(emp.id)}>🗑️</button>
+                  <td>{emp.phone ?? <span style={{ color: 'var(--muted)' }}>—</span>}</td>
+                  <td>
+                    {emp.department
+                      ? <span className="tag">{emp.department}</span>
+                      : <span style={{ color: 'var(--muted)' }}>—</span>
+                    }
+                  </td>
+                  <td>
+                    <div style={{ display: 'flex', gap: 2, justifyContent: 'flex-end' }}>
+                      <button className="btn-icon" title="Düzenle" onClick={() => openEdit(emp)}>
+                        <Pencil size={14} />
+                      </button>
+                      <button className="btn-icon btn-delete" title="Sil" onClick={() => del(emp.id)}>
+                        <Trash2 size={14} />
+                      </button>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -108,17 +137,26 @@ export default function EmployeesPage() {
       {showModal && (
         <div className="modal-overlay" onClick={() => setShowModal(false)}>
           <div className="modal" onClick={e => e.stopPropagation()}>
-            <h2>{editing ? 'Çalışanı Düzenle' : 'Yeni Çalışan'}</h2>
-            {error && <p style={{ color: 'var(--danger)', marginBottom: 12, fontSize: 13 }}>{error}</p>}
-            {(['name', 'email', 'phone', 'department'] as const).map(field => (
-              <div className="form-row" key={field}>
-                <label>{field === 'name' ? 'Ad Soyad' : field === 'email' ? 'E-posta' : field === 'phone' ? 'Telefon' : 'Departman'}</label>
-                <input value={form[field]} onChange={e => setForm(f => ({ ...f, [field]: e.target.value }))} />
+            <div className="modal-header">
+              <h2>{editing ? 'Çalışanı Düzenle' : 'Yeni Çalışan'}</h2>
+              <button className="btn-ghost btn-icon" onClick={() => setShowModal(false)}>✕</button>
+            </div>
+            {error && <p className="alert alert-error" style={{ marginBottom: 14 }}>{error}</p>}
+            {fields.map(f => (
+              <div className="form-row" key={f.key}>
+                <label>{f.label}</label>
+                <input
+                  placeholder={f.placeholder}
+                  value={form[f.key]}
+                  onChange={e => setForm(prev => ({ ...prev, [f.key]: e.target.value }))}
+                />
               </div>
             ))}
             <div className="form-actions">
               <button className="btn-secondary" onClick={() => setShowModal(false)}>İptal</button>
-              <button className="btn-primary" onClick={save}>Kaydet</button>
+              <button className="btn-primary" onClick={save}>
+                {editing ? 'Değişiklikleri Kaydet' : 'Çalışan Ekle'}
+              </button>
             </div>
           </div>
         </div>
@@ -126,20 +164,25 @@ export default function EmployeesPage() {
 
       {showImport && (
         <div className="modal-overlay" onClick={() => setShowImport(false)}>
-          <div className="modal" style={{ maxWidth: 600 }} onClick={e => e.stopPropagation()}>
-            <h2>CSV İçe Aktar</h2>
-            <p style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 12 }}>
-              Format: <code>name,email,phone,department</code> (ilk satır başlık olmalı)
+          <div className="modal" style={{ maxWidth: 560 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>CSV İçe Aktar</h2>
+              <button className="btn-ghost btn-icon" onClick={() => setShowImport(false)}>✕</button>
+            </div>
+            <p style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 12 }}>
+              Format: <code style={{ background: 'var(--bg)', padding: '1px 5px', borderRadius: 3 }}>name,email,phone,department</code> — ilk satır başlık olmalı
             </p>
             <textarea
-              style={{ height: 200, fontFamily: 'monospace', fontSize: 13 }}
+              style={{ height: 180, fontFamily: 'monospace', fontSize: 12, resize: 'vertical' }}
               placeholder={'name,email,phone,department\nAhmet Yılmaz,ahmet@sirket.com,5551234567,Yazılım'}
               value={csvText}
               onChange={e => setCsvText(e.target.value)}
             />
             <div className="form-actions">
               <button className="btn-secondary" onClick={() => setShowImport(false)}>İptal</button>
-              <button className="btn-primary" onClick={importCsv}>İçe Aktar</button>
+              <button className="btn-primary" onClick={importCsv}>
+                <Upload size={14} /> İçe Aktar
+              </button>
             </div>
           </div>
         </div>

@@ -1,11 +1,16 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { BrowserQRCodeReader, IScannerControls } from '@zxing/browser'
+import { createWorker } from 'tesseract.js'
+import { CheckCircle2, AlertTriangle, XCircle, ChevronLeft, LogOut, ScanLine } from 'lucide-react'
 import { api } from '../api/client.ts'
 
 interface Staff { id: string; name: string }
+interface Event { id: string; title: string; date: string; location?: string | null }
 
 interface Props {
   staff: Staff
+  event: Event
+  onBack: () => void
   onLogout: () => void
 }
 
@@ -14,12 +19,14 @@ type ResultState =
   | { type: 'already'; name: string; time: string }
   | { type: 'error'; message: string }
 
-export default function ScannerPage({ staff, onLogout }: Props) {
+export default function ScannerPage({ staff, event, onBack, onLogout }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null)
+  const canvasRef = useRef<HTMLCanvasElement>(null)
   const controlsRef = useRef<IScannerControls | null>(null)
   const [code, setCode] = useState('')
   const [result, setResult] = useState<ResultState | null>(null)
   const [processing, setProcessing] = useState(false)
+  const [ocrLoading, setOcrLoading] = useState(false)
   const processingRef = useRef(false)
 
   const showResult = useCallback((r: ResultState) => {
@@ -33,7 +40,7 @@ export default function ScannerPage({ staff, onLogout }: Props) {
     setProcessing(true)
 
     try {
-      const res = await api.checkin(value.trim(), staff.id) as {
+      const res = await api.checkin(value.trim(), staff.id, event.id) as {
         success: boolean
         message: string
         employee?: { name: string; department?: string }
@@ -64,35 +71,80 @@ export default function ScannerPage({ staff, onLogout }: Props) {
       setProcessing(false)
       setTimeout(() => { processingRef.current = false }, 2000)
     }
-  }, [staff.id, showResult])
+  }, [staff.id, event.id, showResult])
 
   useEffect(() => {
     if (!videoRef.current) return
     const reader = new BrowserQRCodeReader()
+    let capturedStream: MediaStream | null = null
 
-    reader.decodeFromVideoDevice(undefined, videoRef.current, (result) => {
+    reader.decodeFromVideoDevice(undefined, videoRef.current, (result, _, controls) => {
       if (result) doCheckin(result.getText())
+      if (!controlsRef.current && controls) controlsRef.current = controls
     }).then(controls => {
       controlsRef.current = controls
-    }).catch(() => {
-      // Kamera izni yoksa sessizce geç, kullanıcı manuel kod girebilir
-    })
+      // Stream'i controls.stop() çağrılmadan önce yakalıyoruz
+      capturedStream = videoRef.current?.srcObject as MediaStream | null
+    }).catch(() => {})
 
-    return () => { controlsRef.current?.stop() }
+    return () => {
+      // Önce stream'i al (controls.stop() srcObject'i temizleyebilir)
+      const stream = capturedStream ?? (videoRef.current?.srcObject as MediaStream | null)
+      controlsRef.current?.stop()
+      stream?.getTracks().forEach(t => t.stop())
+      if (videoRef.current) videoRef.current.srcObject = null
+    }
   }, [doCheckin])
+
+  const doOCR = useCallback(async () => {
+    if (ocrLoading || !videoRef.current) return
+    setOcrLoading(true)
+    try {
+      const video = videoRef.current
+      const canvas = canvasRef.current!
+      canvas.width = video.videoWidth
+      canvas.height = video.videoHeight
+      canvas.getContext('2d')!.drawImage(video, 0, 0)
+      const dataUrl = canvas.toDataURL('image/png')
+
+      const worker = await createWorker('eng')
+      const { data } = await worker.recognize(dataUrl)
+      await worker.terminate()
+
+      const match = data.text.replace(/\s/g, '').match(/\d{9}/)
+      if (match) {
+        setCode(match[0])
+        doCheckin(match[0])
+      } else {
+        showResult({ type: 'error', message: 'Kamerayı 9 haneli kodun üzerine tutun' })
+      }
+    } catch {
+      showResult({ type: 'error', message: 'OCR işlemi başarısız oldu' })
+    } finally {
+      setOcrLoading(false)
+    }
+  }, [ocrLoading, doCheckin, showResult])
 
   return (
     <div className="scanner-screen">
       <div className="scanner-header">
-        <div>
-          <div style={{ fontWeight: 600 }}>Etkinlik Girişi</div>
-          <div className="staff-name">Görevli: {staff.name}</div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+          <button className="back-btn" onClick={onBack} title="Etkinlik seçimine dön">
+            <ChevronLeft size={16} />
+          </button>
+          <div>
+            <div style={{ fontWeight: 600, fontSize: 15 }}>{event.title}</div>
+            <div className="staff-name">Görevli: {staff.name}</div>
+          </div>
         </div>
-        <button className="logout-btn" onClick={onLogout}>Çıkış</button>
+        <button className="logout-btn" onClick={onLogout}>
+          <LogOut size={14} /> Çıkış
+        </button>
       </div>
 
       <div className="camera-container">
         <video ref={videoRef} muted playsInline />
+        <canvas ref={canvasRef} style={{ display: 'none' }} />
         <div className="scan-overlay">
           <div className="scan-frame" />
         </div>
@@ -101,6 +153,14 @@ export default function ScannerPage({ staff, onLogout }: Props) {
       <div className="manual-section">
         <h3>veya 9 haneli kodu girin</h3>
         <div className="code-input-row">
+          <button
+            className="ocr-btn"
+            onClick={doOCR}
+            disabled={ocrLoading}
+            title="Kameradan OCR ile oku"
+          >
+            {ocrLoading ? '…' : 'OCR'}
+          </button>
           <input
             className="code-input"
             type="text"
@@ -128,7 +188,9 @@ export default function ScannerPage({ staff, onLogout }: Props) {
         >
           <div className="result-card">
             <div className="result-icon">
-              {result.type === 'success' ? '✅' : result.type === 'already' ? '⚠️' : '❌'}
+              {result.type === 'success' && <CheckCircle2 size={72} strokeWidth={1.5} />}
+              {result.type === 'already' && <AlertTriangle size={72} strokeWidth={1.5} />}
+              {result.type === 'error' && <XCircle size={72} strokeWidth={1.5} />}
             </div>
             {result.type === 'success' && (
               <>
@@ -146,7 +208,7 @@ export default function ScannerPage({ staff, onLogout }: Props) {
             )}
             {result.type === 'error' && (
               <>
-                <div className="result-name">Geçersiz</div>
+                <div className="result-name">Geçersiz Kod</div>
                 <div className="result-detail">{result.message}</div>
               </>
             )}
