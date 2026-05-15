@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.env
+*.local
+.DS_Store
+
+# React Native
+apps/staff-mobile/android/.gradle
+apps/staff-mobile/android/app/build
+apps/staff-mobile/android/build
+apps/staff-mobile/ios/build
+apps/staff-mobile/ios/Pods
+apps/staff-mobile/.expo
+
+# API
+apps/api/prisma/migrations
+.expo/

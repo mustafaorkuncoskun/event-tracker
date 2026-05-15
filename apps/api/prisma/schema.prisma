@@ -1,0 +1,58 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Employee {
+  id          String       @id @default(uuid())
+  name        String
+  email       String       @unique
+  phone       String?
+  department  String?
+  invitations Invitation[]
+  createdAt   DateTime     @default(now())
+}
+
+model Event {
+  id          String       @id @default(uuid())
+  title       String
+  date        DateTime
+  location    String?
+  invitations Invitation[]
+  createdAt   DateTime     @default(now())
+}
+
+model Invitation {
+  id         String    @id @default(uuid())
+  employee   Employee  @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+  employeeId String
+  event      Event     @relation(fields: [eventId], references: [id], onDelete: Cascade)
+  eventId    String
+  token      String    @unique @default(uuid())
+  code       String    @unique
+  sentAt     DateTime?
+  checkin    CheckIn?
+  createdAt  DateTime  @default(now())
+
+  @@unique([employeeId, eventId])
+}
+
+model CheckIn {
+  id           String     @id @default(uuid())
+  invitation   Invitation @relation(fields: [invitationId], references: [id])
+  invitationId String     @unique
+  staffUser    StaffUser  @relation(fields: [staffId], references: [id])
+  staffId      String
+  checkedAt    DateTime   @default(now())
+}
+
+model StaffUser {
+  id       String    @id @default(uuid())
+  name     String
+  pinCode  String    @unique
+  checkIns CheckIn[]
+}

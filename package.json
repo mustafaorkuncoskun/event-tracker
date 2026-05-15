@@ -1,0 +1,13 @@
+{
+  "name": "event-tracker",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev:api": "npm -w apps/api run dev",
+    "dev:admin": "npm -w apps/admin run dev",
+    "dev:staff": "npm -w apps/staff-web run dev"
+  }
+}

@@ -1,0 +1,92 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --primary: #2563eb;
+  --primary-hover: #1d4ed8;
+  --danger: #dc2626;
+  --success: #16a34a;
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --border: #e2e8f0;
+  --text: #0f172a;
+  --muted: #64748b;
+  --radius: 8px;
+  font-family: system-ui, -apple-system, sans-serif;
+  color: var(--text);
+  background: var(--bg);
+}
+
+body { min-height: 100vh; }
+
+a { color: var(--primary); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+button {
+  cursor: pointer;
+  border: none;
+  border-radius: var(--radius);
+  padding: 8px 16px;
+  font-size: 14px;
+  font-weight: 500;
+  transition: background 0.15s;
+}
+
+.btn-primary { background: var(--primary); color: #fff; }
+.btn-primary:hover { background: var(--primary-hover); }
+.btn-danger { background: var(--danger); color: #fff; }
+.btn-secondary { background: var(--border); color: var(--text); }
+.btn-sm { padding: 4px 10px; font-size: 12px; }
+.btn-icon { background: transparent; padding: 4px 8px; color: var(--muted); }
+.btn-icon:hover { color: var(--danger); background: #fee2e2; }
+
+input, select, textarea {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 8px 12px;
+  font-size: 14px;
+  width: 100%;
+  outline: none;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--primary); }
+
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th { text-align: left; padding: 10px 12px; background: var(--bg); border-bottom: 2px solid var(--border); color: var(--muted); font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; }
+td { padding: 10px 12px; border-bottom: 1px solid var(--border); }
+tr:last-child td { border-bottom: none; }
+tr:hover td { background: var(--bg); }
+
+.card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 999px; font-size: 12px; font-weight: 500; }
+.badge-green { background: #dcfce7; color: #15803d; }
+.badge-gray { background: #f1f5f9; color: var(--muted); }
+.badge-blue { background: #dbeafe; color: #1d4ed8; }
+
+.modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.4); display: flex; align-items: center; justify-content: center; z-index: 100; }
+.modal { background: var(--surface); border-radius: var(--radius); padding: 24px; width: 100%; max-width: 480px; box-shadow: 0 20px 60px rgba(0,0,0,.15); }
+.modal h2 { margin-bottom: 16px; font-size: 18px; }
+
+.form-row { display: flex; flex-direction: column; gap: 4px; margin-bottom: 12px; }
+.form-row label { font-size: 13px; color: var(--muted); font-weight: 500; }
+.form-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+
+.page { padding: 32px; max-width: 1100px; margin: 0 auto; }
+.page-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+.page-header h1 { font-size: 22px; }
+
+.stat-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
+.stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px; text-align: center; }
+.stat-card .num { font-size: 36px; font-weight: 700; }
+.stat-card .label { font-size: 13px; color: var(--muted); margin-top: 4px; }
+
+.checkin-feed { max-height: 400px; overflow-y: auto; }
+.feed-item { display: flex; align-items: center; gap: 12px; padding: 10px 0; border-bottom: 1px solid var(--border); animation: fadeIn 0.3s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
+
+.nav { background: #1e293b; color: #fff; padding: 0 32px; display: flex; align-items: center; gap: 32px; height: 56px; }
+.nav .logo { font-weight: 700; font-size: 16px; color: #fff; }
+.nav a { color: #94a3b8; font-size: 14px; transition: color 0.15s; }
+.nav a:hover, .nav a.active { color: #fff; text-decoration: none; }
+
+.empty { text-align: center; color: var(--muted); padding: 48px; font-size: 14px; }
+
+.tag { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 999px; font-size: 12px; background: var(--border); }
